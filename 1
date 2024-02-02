@@ -1,0 +1,49 @@
+import numpy as np
+from scipy import ndimage
+import cv2
+
+def color_filter_array(mask, shape):
+    """Simulate CFA for given mask and image size"""
+    return np.dstack(
+        [
+            np.tile(mask[:, :, channel], np.asarray(shape) // len(mask[:, :, channel]))
+            for channel in range(mask.shape[-1])
+        ]
+    )
+
+def demosaic_bayer_conv(image_path):
+    # Wczytanie obrazu
+    image = np.load(image_path)
+    image = image[:,:,:3]  # Ignoruj ostatnią warstwę, jeśli obraz RGBA
+    image = cv2.resize(image, (1024, 1024))  # Dostosuj rozmiar obrazu
+
+    # Utworzenie maski Bayera
+    bayer_mask = np.array([[[0, 1], [0, 0]],  # R
+                           [[1, 0], [0, 1]],  # G
+                           [[0, 0], [1, 0]]], dtype=np.uint8)  # B
+    bayer_filter = color_filter_array(bayer_mask, shape=np.array([1024, 1024]))
+
+  
+    sensor_image = image * bayer_filter
+
+    
+    demosaicking_convolution_mask = np.dstack([
+        np.ones([2, 2]),        # R
+        0.5 * np.ones([2, 2]),  # G
+        np.ones([2, 2]),        # B
+    ])
+
+    demosaiced_channels = [
+        ndimage.convolve(sensor_image[:, :, channel], demosaicking_convolution_mask[:, :, channel], mode="constant", cval=0.0)
+        for channel in range(3)
+    ]
+
+   
+    reconstructed_image = np.dstack(demosaiced_channels)
+
+    cv2.imshow("Reconstructed Image (Convolution)", reconstructed_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
+demosaic_bayer_conv(r"C:\Users\olawe\OneDrive\Obrazy\CFA_NPY\Bayer\namib.npy")
